@@ -26,7 +26,18 @@ with st.sidebar:
     kinds,
     index=kinds.index('Equity index') if 'Equity index' in kinds else 0,    
     format_func=lambda x: 'Credit' if x == 'Credit reference' else x)
-    underlying=st.text_input('Reference name','EURO STOXX 50 Index')
+    #underlying=st.text_input('Reference name','EURO STOXX 50 Index')
+    default_reference = (
+    'Illustrative Reference Entity'
+    if family == 'Credit Linked Note'
+    else 'EURO STOXX 50 Index'
+)
+
+    underlying = st.text_input(
+    'Reference name',
+    value=default_reference,
+    key=f'reference_name_{family}'
+)
     currency=st.selectbox('Currency',['EUR','USD','GBP','CHF'])
     index_variant=st.selectbox('Index convention',['Price Return','Net Total Return','Gross Total Return'],disabled=kind!='Equity index')
     fixing=st.text_input('Reference fixing source','Not specified')
@@ -45,7 +56,15 @@ with a:
         format="DD/MM/YYYY"
     )
     )
-    frequency=st.selectbox('Observations per year',[1,2,4,12],index=2)
+    #frequency=st.selectbox('Observations per year',[1,2,4,12],index=2)
+    if family in ('Phoenix Autocall', 'Athena Autocall'):
+        frequency = st.selectbox(
+        'Observations per year',
+        [1, 2, 4, 12],
+        index=2
+    )
+    else:
+        frequency = 4
     option_type=st.selectbox('Option type',['Call','Put']) if family=='European Option' else 'Call'
     strike=st.number_input('Strike (% of initial)',1.,300.,100.,step=5.)/100 if family in ('European Option','Capital Protected Note') else 1.
 with b:
@@ -58,8 +77,24 @@ with b:
     participation=st.number_input('Upside participation (%)',0.,300.,100.,step=10.)/100 if family=='Capital Protected Note' else 1.
 with c:
     rate=st.number_input('Risk-free rate (%)',-20.,50.,3.,step=.25)/100
-    dividend=st.number_input('Continuous yield / foreign rate proxy (%)',-10.,50.,2.,step=.25)/100
-    volatility=st.number_input('Volatility (%)',.1,200.,20.,step=.5)/100
+    #dividend=st.number_input('Continuous yield / foreign rate proxy (%)',-10.,50.,2.,step=.25)/100
+    #volatility=st.number_input('Volatility (%)',.1,200.,20.,step=.5)/100
+    
+    if family != 'Credit Linked Note':
+        dividend = st.number_input(
+        'Continuous yield / foreign rate proxy (%)',
+        -10., 50., 2., step=.25
+    ) / 100
+
+        volatility = st.number_input(
+        'Volatility (%)',
+        .1, 200., 20., step=.5
+    ) / 100
+    else:
+        dividend = 0.02
+        volatility = 0.20
+
+
     paths=st.select_slider('Monte Carlo paths',[5000,10000,30000,50000,100000],value=30000)
     reference_entity=st.text_input('Credit reference entity','Illustrative Reference Entity') if family=='Credit Linked Note' else ''
     credit_hazard=st.number_input('Default intensity (% p.a.)',0.,100.,2.5,step=.5)/100 if family=='Credit Linked Note' else .025
@@ -100,4 +135,3 @@ if 'valuation' in st.session_state:
             else:pdf=TermSheetGenerator(language).build(p,m,v)
             st.download_button('Download indicative PDF',pdf,file_name=f'{family.replace(" ","_")}_{language}.pdf',mime='application/pdf')
         except Exception as e:st.error(f'PDF generation failed: {e}')
-
