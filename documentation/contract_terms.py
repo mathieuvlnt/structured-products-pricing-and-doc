@@ -2,7 +2,13 @@
 
 def conditional_terms(p, language='EN'):
     """Generate family-specific indicative contractual descriptions from actual payoff inputs."""
-    fr=language=='FR'; pct=lambda x:f'{x:.2%}'
+    #fr=language=='FR'; pct=lambda x:f'{x:.2%}'
+    fr = language == 'FR'
+
+    def pct(x):
+        number = f'{x * 100:.2f}'.rstrip('0').rstrip('.')
+        return number.replace('.', ',') + ' %' if fr else number + '%'
+    
     f=p.family if hasattr(p,'family') else 'Phoenix Autocall'
     if f=='Phoenix Autocall':
         rows=[('Observation and coupon test','Constatation et condition de coupon',f'{p.periods} observations; coupon {pct(p.coupon_rate/p.frequency)} of notional when ratio ≥ {pct(p.coupon_barrier)}; no memory.',f'{p.periods} observations ; coupon de {pct(p.coupon_rate/p.frequency)} du nominal si ratio ≥ {pct(p.coupon_barrier)} ; sans mémoire.'),('Automatic redemption','Remboursement automatique',f'From observation {p.first_call}, before maturity: ratio ≥ {pct(p.call_barrier)} ⇒ principal repaid; subsequent payments cease.',f'À partir de l’observation {p.first_call}, avant échéance : ratio ≥ {pct(p.call_barrier)} ⇒ remboursement du nominal et arrêt des flux ultérieurs.'),('Final European protection','Protection européenne finale',f'Absent early call: ratio ≥ {pct(p.protection_barrier)} ⇒ 100% principal; otherwise principal × final ratio.',f'Sans rappel : ratio ≥ {pct(p.protection_barrier)} ⇒ 100 % du nominal ; sinon nominal × ratio final.')]

@@ -173,16 +173,20 @@ def payoff_chart(product, language="FR"):
     def payoff_ratio(x):
 
         # PHOENIX / ATHENA
-        if family in (
-            "Phoenix Autocall",
-            "Athena Autocall"
-        ):
+        if family == "Phoenix Autocall":
+            barrier = float(product.protection_barrier)
+            return 1.0 if x >= barrier else x
 
-            barrier = float(
-                product.protection_barrier
-            )
+        # ATHENA — total redemption at maturity,
+        # assuming no earlier autocall
+        if family == "Athena Autocall":
+            protection = float(product.protection_barrier)
+            call_barrier = float(product.call_barrier)
 
-            if x >= barrier:
+            if x >= call_barrier:
+                return 1.0 + product.coupon_rate * product.years
+
+            if x >= protection:
                 return 1.0
 
             return x
@@ -249,6 +253,14 @@ def payoff_chart(product, language="FR"):
                 barrier
             ])
 
+    if family == "Athena Autocall":
+        call_barrier = float(product.call_barrier)
+
+        if 0 < call_barrier < 1.5:
+            xs.extend([
+                call_barrier - 0.000001,
+                call_barrier
+            ])
     xs = sorted(set(xs))
 
     points = [
@@ -349,7 +361,7 @@ def payoff_chart(product, language="FR"):
                 bottom + plot_height - 4 * mm,
                 "Protection barrier"
                 if not fr else
-                "Barriere de protection"
+                "Barrière de protection"
             )
 
     # ==========================================

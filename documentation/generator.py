@@ -18,6 +18,13 @@ import calendar
 from documentation.theme import BROWN, TAUPE, SAND, IVORY, CHARCOAL, GRID, page_chrome
 NAVY=BROWN; PALE=IVORY
 
+def fmt_pct(value, language="EN", decimals=2):
+    result = f"{value * 100:.{decimals}f}".rstrip("0").rstrip(".")
+
+    if language == "FR":
+        return result.replace(".", ",") + " %"
+
+    return result + "%"
 
 def underlying_risks(kind, lang):
     disclosures = {
@@ -244,7 +251,10 @@ class TermSheetGenerator:
             tb=Table([[self.p(x,self.small) for x in row] for row in rows],colWidths=[67*mm,107*mm],hAlign='LEFT')
             tb.setStyle(TableStyle([('ROWBACKGROUNDS',(0,0 if not header else 1),(-1,-1),[IVORY,colors.white] if not header else [colors.white,IVORY]),('BACKGROUND',(0,0),(-1,0),IVORY if not header else PALE),('LINEBELOW',(0,0),(-1,-1),.3,GRID),('VALIGN',(0,0),(-1,-1),'TOP'),('LEFTPADDING',(0,0),(-1,-1),8),('RIGHTPADDING',(0,0),(-1,-1),8),('TOPPADDING',(0,0),(-1,-1),7),('BOTTOMPADDING',(0,0),(-1,-1),7)]));a(tb)
         fmt = lambda x: f'{x:,.0f}'.replace(",", " ") if self.fr else f'{x:,.0f}'
-        pct = lambda x: f'{100*x:.0f}%'
+        #pct = lambda x: f'{100*x:.1f}%'
+        def pct(x):
+            number = f'{x * 100:.2f}'.rstrip('0').rstrip('.')
+            return number.replace('.', ',') + ' %' if self.fr else number + '%'
         a(self.p(self.t('STRUCTURED INVESTMENTS | INDICATIVE TERMS','PRODUITS STRUCTURÉS | CONDITIONS INDICATIVES'),self.title))
         a(self.p(family+' — '+p.underlying,self.head))
         # One shared summary-table renderer for all five families. The rows are
@@ -305,6 +315,11 @@ class TermSheetGenerator:
                   #(self.t('Indicative model value','Valeur indicative'),f'{fmt(v.value)} {p.currency} ({pct(v.value/p.notional)})'),
                   #(self.t('Pricing model','Modèle de valorisation'),getattr(v,'model','GBM Monte Carlo (constant volatility)'))
                   ]
+            if family == 'Athena Autocall':
+                rows.append((
+                    self.t('Observation frequency', 'Fréquence des observations'),
+                    f'{p.frequency} ' + self.t('per year', 'par an')
+                ))
             if family=='European Option':rows += [(self.t('Option','Option'),p.option_type),(self.t('Strike / initial','Strike / initial'),pct(p.strike))]
             elif family=='Athena Autocall':rows += [(self.t('Autocall barrier','Barrière de rappel'),pct(p.call_barrier)),(self.t('Protection barrier','Barrière de protection'),pct(p.protection_barrier)),(self.t('Accrued gain','Gain cumulé'),pct(p.coupon_rate)+' '+self.t('per year','par an')),(self.t('First call observation','Première observation de rappel'),str(p.first_call))]
             elif family=='Capital Protected Note':rows += [(self.t('Protected principal fraction','Fraction protégée du capital'),pct(p.protection)),(self.t('Upside participation','Participation à la hausse'),pct(p.participation)),(self.t('Call strike','Strike du call'),pct(p.strike))]
@@ -315,9 +330,20 @@ class TermSheetGenerator:
         a(self.p(self.t('PART A — CONTRACTUAL PRODUCT TERMS','PARTIE A — CONDITIONS CONTRACTUELLES DU PRODUIT'),self.title))
         h('Product description','Description du produit')
         if family=='Phoenix Autocall':
-            tx('This Phoenix pays a conditional coupon at each observation when the reference ratio is at or above the coupon barrier. From the first eligible autocall observation, a ratio at or above the autocall barrier triggers early redemption of principal and terminates future payments. If no early redemption occurs, principal is repaid at maturity only if the final ratio meets the European protection barrier; otherwise the redemption follows the final ratio. No coupon memory applies.', 'Ce Phoenix verse un coupon conditionnel à chaque constatation lorsque le ratio de référence atteint la barrière de coupon. À partir de la première constatation éligible, le franchissement de la barrière de rappel déclenche le remboursement anticipé du nominal et met fin aux paiements futurs. Sans rappel, le nominal est remboursé à échéance si la barrière européenne de protection est respectée ; sinon le remboursement suit le ratio final. Les coupons ne sont pas mémorisés.')
-        elif family=='European Option':
-            tx(f'At maturity, the {p.option_type.lower()} pays notional multiplied by the positive part of the underlying ratio minus strike (call), or strike minus ratio (put). The option buyer pays a premium and may lose it in full.',f'À échéance, le {p.option_type.lower()} verse le nominal multiplié par la partie positive du ratio final moins le strike (call), ou du strike moins le ratio (put). L’acheteur verse une prime qu’il peut perdre intégralement.')
+            tx('This Phoenix pays a conditional coupon at each observation when the reference ratio is at or above the coupon barrier. From the first eligible autocall observation, a ratio at or above the autocall barrier triggers early redemption of principal and terminates future payments. If no early redemption occurs, principal is repaid at maturity only if the final ratio meets the European protection barrier; otherwise the redemption follows the final ratio. No coupon memory applies.', 'Ce Phoenix verse un coupon conditionnel à chaque constatation lorsque le ratio de référence atteint la barrière de coupon. À partir de la première constatation éligible, le franchissement de la barrière de rappel déclenche le remboursement anticipé du nominal et met fin aux paiements futurs. Sans rappel, le nominal est remboursé à échéance si la barrière européenne de protection est respectée ; sinon le remboursement suit le ratio final. Les coupons ne sont pas mémorisés.')        
+        elif family == 'European Option':
+            if p.option_type == 'Call':
+                tx(
+                    'At maturity, the call pays the notional multiplied by the positive part of the final underlying ratio minus the strike. The option buyer pays a premium and may lose it in full.',
+                    'À échéance, le call verse le nominal multiplié par la partie positive de la différence entre le ratio final du sous-jacent et le strike. L’acheteur verse une prime qu’il peut perdre intégralement.'
+                )
+            else:
+                tx(
+                    'At maturity, the put pays the notional multiplied by the positive part of the strike minus the final underlying ratio. The option buyer pays a premium and may lose it in full.',
+                    'À échéance, le put verse le nominal multiplié par la partie positive de la différence entre le strike et le ratio final du sous-jacent. L’acheteur verse une prime qu’il peut perdre intégralement.'
+                )
+
+
         elif family=='Athena Autocall':
             tx('This illustrative Athena pays no periodic coupons. If the underlying meets the autocall barrier on an eligible observation, the note redeems at principal plus a simple annual gain accrued from inception. Otherwise, at maturity the investor receives principal plus the accrued gain if the final autocall condition is met; principal if above the European protection barrier; or principal multiplied by the final ratio if below it.', 'Cet Athena illustratif ne verse pas de coupon périodique. Si le sous-jacent atteint la barrière de rappel à une observation éligible, le nominal et un gain annuel simple cumulé depuis l’origine sont remboursés. Sinon, à échéance : nominal et gain si la condition de rappel finale est remplie ; nominal si la barrière européenne de protection est respectée ; sinon nominal multiplié par le ratio final.')
         elif family=='Capital Protected Note':
@@ -327,7 +353,46 @@ class TermSheetGenerator:
         h('Indicative contractual definitions','Définitions contractuelles indicatives')
         table([(self.t('Defined term','Terme défini'),self.t('Illustrative application','Application illustrative'))]+conditional_terms(p,self.lang))
         h('Model / market conventions','Conventions de marché et de modèle')
-        table([(self.t('Assumption','Hypothèse'),self.t('Value','Valeur')),(self.t('Risk-free discount rate','Taux sans risque'),pct(m.rate)),(self.t('Carry / foreign yield proxy','Portage / rendement étranger'),pct(m.dividend)),(self.t('Constant volatility','Volatilité constante'),pct(m.volatility)),(self.t('Model','Modèle'),getattr(v,'model','GBM Monte Carlo (constant volatility)'))])
+        #table([(self.t('Assumption','Hypothèse'),self.t('Value','Valeur')),(self.t('Risk-free discount rate','Taux sans risque'),pct(m.rate)),(self.t('Carry / foreign yield proxy','Portage / rendement étranger'),pct(m.dividend)),(self.t('Constant volatility','Volatilité constante'),pct(m.volatility)),(self.t('Model','Modèle'),getattr(v,'model','GBM Monte Carlo (constant volatility)'))])
+        
+        model_rows = [
+            (self.t('Risk-free discount rate', 'Taux sans risque'), pct(m.rate))
+        ]
+
+        if family == 'Credit Linked Note':
+            model_rows.extend([
+                (
+                    self.t('Annual default intensity', 'Intensité de défaut annuelle'),
+                    pct(p.credit_hazard)
+                ),
+                (
+                    self.t('Assumed recovery rate', 'Taux de recouvrement supposé'),
+                    pct(p.recovery)
+                )
+            ])
+        else:
+            model_rows.extend([
+                (
+                    self.t('Carry / foreign yield proxy', 'Portage / rendement étranger'),
+                    pct(m.dividend)
+                ),
+                (
+                    self.t('Constant volatility', 'Volatilité constante'),
+                    pct(m.volatility)
+                )
+            ])
+
+        model_rows.append((
+            self.t('Model', 'Modèle'),
+            'GBM Monte Carlo (constant volatility)'
+            if family == 'Phoenix Autocall'
+            else getattr(v, 'model', 'Illustrative pricing model')
+        ))
+
+        table([
+            (self.t('Assumption', 'Hypothèse'), self.t('Value', 'Valeur'))
+        ] + model_rows)
+
         tx('Underlying reference and dates are illustrative. Market fixing source, business-day calendars, disruption events, settlement conventions and corporate-action adjustment terms have not been legally defined.', 'La référence et les dates sont illustratives. La source de constatation, les calendriers, perturbations, conventions de règlement et ajustements d’opérations sur titres ne sont pas définis juridiquement.')
         a(PageBreak())
         a(self.p(self.t('ILLUSTRATIVE REDEMPTION EXAMPLES','EXEMPLES ILLUSTRATIFS DE REMBOURSEMENT'),self.title))
@@ -339,10 +404,10 @@ class TermSheetGenerator:
             for label,ratio in [('Severe downside',.35),('Moderate downside',.8),('Flat',1.0)]:
                 path=[max(0.0,min(p.call_barrier-.01,.75))]*(p.periods-1)+[ratio]
                 flows=p.cashflows(path)
-                cases.append((label,f'{ratio:.0%}',f'{fmt(sum(f["redemption"] for f in flows))} {p.currency}'))
+                cases.append((label,fmt_pct(ratio),f'{fmt(sum(f["redemption"] for f in flows))} {p.currency}'))
             path=[max(0.0,min(p.call_barrier-.01,.75))]*(p.first_call-1)+[max(p.call_barrier,1.05)] + [1.]*(p.periods-p.first_call)
             flows=p.cashflows(path)
-            cases.append(('Early autocall',f'{path[p.first_call-1]:.0%}',f'{fmt(sum(f["redemption"] for f in flows))} {p.currency}'))
+            cases.append(('Early autocall',pct(path[p.first_call-1]),f'{fmt(sum(f["redemption"] for f in flows))} {p.currency}'))
             table([(self.t('Illustrative scenario','Scénario illustratif'),self.t('Final / call ratio and principal redemption','Ratio final / de rappel et remboursement du capital'))]+[(self.t(x,{'Severe downside':'Forte baisse','Moderate downside':'Baisse modérée','Flat':'Stable','Early autocall':'Rappel anticipé'}.get(x,x)),f'{y} / {z}') for x,y,z in cases])
             tx('Principal redemptions shown exclude conditional coupons. The early-call case satisfies the selected autocall barrier at the first eligible observation; all other cases assume no earlier autocall.', 'Les remboursements de capital présentés excluent les coupons conditionnels. Le scénario de rappel satisfait la barrière à la première constatation éligible ; les autres scénarios supposent l’absence de rappel antérieur.')
         else:
@@ -355,20 +420,36 @@ class TermSheetGenerator:
             (self.t('Flat', 'Stable'), 1.00),
             (self.t('Upside', 'Hausse'), 1.30),
             ]
-
+#if self.fr else 0.35
             for label, ratio in scenarios:    
                 if family=='Athena Autocall':
                     path=[min(.8,p.call_barrier-.05)]*(p.periods-1)+[ratio]
                     outcome=p.cashflows(path)[-1]['redemption']
                 else:outcome=p.cashflows([ratio]*p.periods)[-1]['redemption']
-                cases.append((label,f'{ratio:.0%}',f'{fmt(outcome)} {p.currency}'))
+                cases.append((label,fmt_pct(ratio),f'{fmt(outcome)} {p.currency}'))
             table([(self.t('Illustrative scenario','Scénario illustratif'),self.t('Final underlying ratio / redemption','Ratio final / remboursement'))]+[(x,f'{y} / {z}') for x,y,z in cases])
-            tx('For Athena, the examples assume no earlier autocall and a constant below-call level before the final observation. Results are contractual examples, not probabilities or PRIIPs scenarios.', 'Pour Athena, les exemples supposent l’absence de rappel préalable et un niveau inférieur à la barrière avant la dernière observation. Il s’agit d’exemples contractuels, non de probabilités ou de scénarios PRIIPs.')
+
+            if family == 'Athena Autocall':
+                tx(
+                    'For Athena, the examples assume no earlier autocall and a constant below-call level before the final observation. Results are contractual examples, not probabilities or PRIIPs scenarios.',
+                    'Pour Athena, les exemples supposent l’absence de rappel préalable et un niveau inférieur à la barrière avant la dernière observation. Il s’agit d’exemples contractuels, non de probabilités ou de scénarios PRIIPs.'
+                )
+            else:
+                tx(
+                    'These examples illustrate the contractual payoff under simplified underlying scenarios.',
+                    'Ces exemples illustrent le mécanisme contractuel du produit selon des scénarios simplifiés d’évolution du sous-jacent.'
+                )
         
-        h(
-    'ILLUSTRATIVE PAYOFF AT MATURITY',
-    'REMBOURSEMENT ILLUSTRATIF À ÉCHÉANCE'
-)
+        if family == 'Credit Linked Note':
+            h(
+                'Illustrative principal settlement by credit scenario',
+                'Remboursement illustratif du capital selon le scénario de crédit'
+            )
+        else:
+            h(
+                'Illustrative payoff at maturity',
+                'Remboursement illustratif à échéance'
+            )
 
         a(Spacer(1, 8))
 
@@ -376,15 +457,23 @@ class TermSheetGenerator:
 
         a(Spacer(1, 8))
 
-        if family in ('Phoenix Autocall', 'Athena Autocall'):
+        if family == 'Phoenix Autocall':
             tx(
-        'Illustration of principal redemption at maturity only, '
-        'assuming no early autocall. Coupons and additional '
-        'payments are excluded.',
-        'Illustration du remboursement du capital à échéance '
-        'uniquement, en l’absence de rappel anticipé. '
-        'Les coupons et paiements complémentaires sont exclus.'
-    )
+                'Illustration of principal redemption at maturity only, '
+                'assuming no early autocall. Conditional coupons are excluded.',
+                'Illustration du remboursement du capital à échéance uniquement, '
+                'en l’absence de rappel anticipé. Les coupons conditionnels sont exclus.'
+            )
+
+        elif family == 'Athena Autocall':
+            tx(
+                'Illustration of total redemption at maturity, assuming no earlier '
+                'autocall. The conditional accrued gain is included when the final '
+                'underlying ratio meets the autocall barrier.',
+                'Illustration du remboursement total à échéance, en l’absence de '
+                'rappel anticipé. Le gain conditionnel cumulé est inclus lorsque '
+                'le ratio final du sous-jacent atteint la barrière de rappel.'
+            )
 
         elif family == 'European Option':
             tx(
@@ -448,4 +537,3 @@ class TermSheetGenerator:
             page_chrome(canvas,document,self.lang,total=5 if family=='Phoenix Autocall' else 4,left=18*mm,right=18*mm)
         doc.build(story,onFirstPage=footer,onLaterPages=footer)
         return add_cover(buf.getvalue(),p,self.lang,photo_bytes=cover_photo)
-
